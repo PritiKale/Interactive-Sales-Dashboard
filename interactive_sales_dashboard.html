@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Interactive Sales Dashboard</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #d0f0fd;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    h1 {
+      text-align: center;
+      color: #fff;
+      text-shadow: 1px 1px 5px rgba(0,0,0,0.2);
+      margin-top: 20px;
+    }
+    .upload-section {
+      margin: 20px;
+      text-align: center;
+    }
+    input[type="file"] {
+      padding: 10px;
+      font-size: 16px;
+      border-radius: 10px;
+      border: 1px solid #ccc;
+      background: rgba(255, 255, 255, 0.25);
+      backdrop-filter: blur(5px);
+    }
+    #charts {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 30px;
+      width: 100%;
+      padding-bottom: 50px;
+    }
+    .chart-container {
+      flex: 1 1 40%;
+      min-width: 300px;
+      max-width: 500px;
+      padding: 20px;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(15px);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+      border: 1px solid rgba(255,255,255,0.3);
+    }
+    /* Make first chart full width */
+    #salesOverTime {
+      flex: 1 1 90%;
+      max-width: 90%;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Interactive Sales Dashboard</h1>
+
+  <div class="upload-section">
+    <input type="file" id="fileInput" accept=".json"/>
+  </div>
+
+  <div id="charts">
+    <div class="chart-container" id="salesOverTime"></div>
+    <div class="chart-container" id="salesByRegion"></div>
+    <div class="chart-container" id="productPerformance"></div>
+    <div class="chart-container" id="customerTypeDistribution"></div>
+    <div class="chart-container" id="discountPromotionImpact"></div>
+  </div>
+
+  <script>
+    document.getElementById('fileInput').addEventListener('change', function(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const data = JSON.parse(e.target.result);
+        createDashboard(data);
+      };
+      reader.readAsText(file);
+    });
+
+    function createDashboard(data) {
+      data.forEach(d => {
+        d.Date = new Date(d.Date);
+        d.TotalPrice = parseFloat(d.TotalPrice);
+        d.Quantity = parseFloat(d.Quantity);
+        d.Discount = parseFloat(d.Discount);
+        d.ShippingCost = parseFloat(d.ShippingCost);
+      });
+
+      // Aggregate sales by year and quarter
+      const salesOverTimeData = {};
+      data.forEach(d => {
+        const year = d.Date.getFullYear();
+        const quarter = Math.floor(d.Date.getMonth() / 3) + 1;
+        const key = year + ' Q' + quarter;
+        salesOverTimeData[key] = (salesOverTimeData[key] || 0) + d.TotalPrice;
+      });
+      const dates = Object.keys(salesOverTimeData);
+      const totals = Object.values(salesOverTimeData);
+      Plotly.newPlot('salesOverTime', [{
+        x: dates,
+        y: totals,
+        type: 'scatter',
+        mode: 'lines+markers',
+        marker: {color: '#1f77b4'}
+      }], {
+        title: 'Total Sales Over Time (Quarterly)',
+        xaxis: { title: 'Year-Quarter' },
+        yaxis: { title: 'Total Sales ($)' },
+        paper_bgcolor:'rgba(0,0,0,0)',
+        plot_bgcolor:'rgba(0,0,0,0)'
+      });
+
+      // Sales by Region
+      const salesByRegion = {};
+      data.forEach(d => {
+        salesByRegion[d.Region] = (salesByRegion[d.Region] || 0) + d.TotalPrice;
+      });
+      Plotly.newPlot('salesByRegion', [{
+        x: Object.keys(salesByRegion),
+        y: Object.values(salesByRegion),
+        type: 'bar',
+        marker: {color: '#ff7f0e'}
+      }], {
+        title: 'Sales by Region',
+        xaxis: { title: 'Region' },
+        yaxis: { title: 'Total Sales ($)' },
+        paper_bgcolor:'rgba(0,0,0,0)',
+        plot_bgcolor:'rgba(0,0,0,0)'
+      });
+
+      // Product Performance
+      const productSales = {};
+      data.forEach(d => {
+        productSales[d.Product] = (productSales[d.Product] || 0) + d.TotalPrice;
+      });
+      Plotly.newPlot('productPerformance', [{
+        x: Object.keys(productSales),
+        y: Object.values(productSales),
+        type: 'bar',
+        marker: {color: '#2ca02c'}
+      }], {
+        title: 'Product Performance',
+        xaxis: { title: 'Product' },
+        yaxis: { title: 'Total Sales ($)' },
+        paper_bgcolor:'rgba(0,0,0,0)',
+        plot_bgcolor:'rgba(0,0,0,0)'
+      });
+
+      // Customer Type Distribution
+      const customerTypeSales = {};
+      data.forEach(d => {
+        customerTypeSales[d.CustomerType] = (customerTypeSales[d.CustomerType] || 0) + d.TotalPrice;
+      });
+      Plotly.newPlot('customerTypeDistribution', [{
+        labels: Object.keys(customerTypeSales),
+        values: Object.values(customerTypeSales),
+        type: 'pie',
+        marker: {colors: ['#d62728','#9467bd']}
+      }], {
+        title: 'Sales Distribution by Customer Type',
+        paper_bgcolor:'rgba(0,0,0,0)'
+      });
+
+      // Discounts & Promotions
+      const promoSales = {};
+      data.forEach(d => {
+        const key = d.Promotion || 'No Promotion';
+        if (!promoSales[key]) promoSales[key] = {total: 0, discount: 0};
+        promoSales[key].total += d.TotalPrice;
+        promoSales[key].discount += d.Discount;
+      });
+      const promoNames = Object.keys(promoSales);
+      const totalSalesValues = promoNames.map(p => promoSales[p].total);
+      const discountValues = promoNames.map(p => promoSales[p].discount);
+
+      Plotly.newPlot('discountPromotionImpact', [
+        { x: promoNames, y: totalSalesValues, name: 'Total Sales', type: 'bar', marker: {color: '#17becf'} },
+        { x: promoNames, y: discountValues, name: 'Discount', type: 'bar', marker: {color: '#bcbd22'} }
+      ], {
+        title: 'Impact of Discounts & Promotions',
+        barmode: 'stack',
+        xaxis: { title: 'Promotion' },
+        yaxis: { title: 'Amount ($)' },
+        paper_bgcolor:'rgba(0,0,0,0)',
+        plot_bgcolor:'rgba(0,0,0,0)'
+      });
+    }
+  </script>
+
+</body>
+</html>
